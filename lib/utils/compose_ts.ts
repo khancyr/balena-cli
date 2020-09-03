@@ -146,7 +146,7 @@ export async function buildProject(opts: {
 	projectPath: string;
 	projectName: string;
 	composition: Composition;
-	arch: string;
+	arch: string; // --arch option or application's architecture
 	deviceType: string;
 	emulated: boolean;
 	buildOpts: import('./docker').BuildOpts;
@@ -168,6 +168,7 @@ export async function buildProject(opts: {
 	);
 	const renderer = await startRenderer({ imageDescriptors, ...opts });
 	try {
+		await checkDockerPlatformCompatibility(opts);
 		await checkBuildSecretsRequirements(opts.docker, opts.projectPath);
 
 		const needsQemu = await installQemuIfNeeded({ ...opts, imageDescriptors });
@@ -807,6 +808,72 @@ export function printGitignoreWarn(
 		`);
 		msg.push(hr);
 		Logger.getLogger().logWarn(msg.join('\n'));
+	}
+}
+
+/**
+ * Conditionally print hint messages regarding the --emulated and --pull
+ * options depending on a comparison between the app architecture and the
+ * architecture of the CPU where Docker or balenaEngine is running.
+ * @param arch App architecture, or --arch flag
+ * @param buildOpts Build options
+ * @param docker Dockerode instance
+ * @param emulated The --emulated flag
+ */
+async function checkDockerPlatformCompatibility({
+	arch, // --arch option or application's architecture
+	buildOpts,
+	docker,
+	emulated,
+}: {
+	arch: string;
+	buildOpts: import('./docker').BuildOpts;
+	docker: Dockerode;
+	emulated: boolean;
+}) {
+	const {
+		asBalenaArch,
+		getDockerVersion,
+		isCompatibleArchitecture,
+	} = await import('./docker');
+	const { platformNeedsQemu } = await import('./qemu');
+	const { Arch: engineArch } = await getDockerVersion(docker);
+
+	// --emulated specifically means ARM emulation on x86 CPUs, so only useful
+	// if the Docker daemon is running on an x86 CPU and the app is ARM
+	const needsEmulatedOption =
+		['amd64', '386'].includes(engineArch) &&
+		(await platformNeedsQemu(docker, emulated));
+
+	const isCompatibleArch = isCompatibleArchitecture(arch, engineArch);
+	const pull = !!buildOpts.pull;
+
+	// Print hints regarding the --emulated and --pull options if their usage
+	// is likely to be helpful based on best-effort detection.
+	if (
+		!isCompatibleArch &&
+		(pull !== true || (needsEmulatedOption && emulated !== true))
+	) {
+		const balenaArch = asBalenaArch(engineArch);
+		const msg = [
+			`Note: Host architecture '${balenaArch}' (where Docker or balenaEngine is running)`,
+			`does not match the balena application architecture '${arch}'.`,
+		];
+		// TODO: improve on `--pull` suggestion by querying the architecture of
+		// any cached base image and comparing it with the app architecture.
+		if (pull !== true) {
+			msg.push(
+				'If multiarch base images are being used, the `--pull` option may be used to',
+				'ensure that cached base images are pulled again for a different architecture.',
+			);
+		}
+		if (needsEmulatedOption && emulated !== true) {
+			msg.push(
+				'The `--emulated` option may be used to enable ARM architecture emulation',
+				'with QEMU during the image build.',
+			);
+		}
+		Logger.getLogger().logInfo(msg.join('\n  '));
 	}
 }
 
