@@ -16,6 +16,8 @@
  */
 
 import type * as Dockerode from 'dockerode';
+
+import { ExpectedError } from '../errors';
 import { getBalenaSdk, stripIndent } from './lazy';
 import Logger = require('./logger');
 
@@ -84,47 +86,50 @@ export const getQemuPath = function (arch: string) {
 	);
 };
 
-export function installQemu(arch: string) {
-	const request = require('request') as typeof import('request');
-	const fs = require('fs') as typeof import('fs');
-	const zlib = require('zlib') as typeof import('zlib');
-	const tar = require('tar-stream') as typeof import('tar-stream');
+async function installQemu(arch: string, qemuPath: string) {
+	const qemuArch = balenaArchToQemuArch(arch);
+	const fileVersion = QEMU_VERSION.replace(/^v/, '').replace('+', '.');
+	const urlFile = encodeURIComponent(`qemu-${fileVersion}-${qemuArch}.tar.gz`);
+	const urlVersion = encodeURIComponent(QEMU_VERSION);
+	const qemuUrl = `https://github.com/balena-io/qemu/releases/download/${urlVersion}/${urlFile}`;
 
-	return getQemuPath(arch).then(
-		(qemuPath) =>
-			new Promise(function (resolve, reject) {
-				const installStream = fs.createWriteStream(qemuPath);
+	const request = await import('request');
+	const fs = await import('fs');
+	const zlib = await import('zlib');
+	const tar = await import('tar-stream');
 
-				const qemuArch = balenaArchToQemuArch(arch);
-				const fileVersion = QEMU_VERSION.replace(/^v/, '').replace('+', '.');
-				const urlFile = encodeURIComponent(
-					`qemu-${fileVersion}-${qemuArch}.tar.gz`,
-				);
-				const urlVersion = encodeURIComponent(QEMU_VERSION);
-				const qemuUrl = `https://github.com/balena-io/qemu/releases/download/${urlVersion}/${urlFile}`;
+	const extract = tar.extract();
+	const installStream = fs.createWriteStream(qemuPath);
+	try {
+		extract.on('entry', function (header, stream, next) {
+			stream.on('end', next);
+			if (header.name.includes(`qemu-${qemuArch}-static`)) {
+				stream.pipe(installStream);
+			} else {
+				stream.resume();
+			}
+		});
 
-				const extract = tar.extract();
-				extract.on('entry', function (header, stream, next) {
-					stream.on('end', next);
-					if (header.name.includes(`qemu-${qemuArch}-static`)) {
-						stream.pipe(installStream);
-					} else {
-						stream.resume();
-					}
+		await new Promise((resolve, reject) => {
+			request(qemuUrl)
+				.on('error', reject)
+				.pipe(zlib.createGunzip())
+				.on('error', reject)
+				.pipe(extract)
+				.on('error', reject)
+				.on('finish', function () {
+					fs.chmodSync(qemuPath, '755');
+					resolve();
 				});
-
-				return request(qemuUrl)
-					.on('error', reject)
-					.pipe(zlib.createGunzip())
-					.on('error', reject)
-					.pipe(extract)
-					.on('error', reject)
-					.on('finish', function () {
-						fs.chmodSync(qemuPath, '755');
-						resolve();
-					});
-			}),
-	);
+		});
+	} catch (err) {
+		try {
+			await fs.promises.unlink(qemuPath);
+		} catch {
+			// ignore
+		}
+		throw err;
+	}
 }
 
 const balenaArchToQemuArch = function (arch: string) {
@@ -136,7 +141,9 @@ const balenaArchToQemuArch = function (arch: string) {
 		case 'aarch64':
 			return 'aarch64';
 		default:
-			throw new Error(`Cannot install emulator for architecture ${arch}`);
+			throw new ExpectedError(
+				`Emulation not supported for architecture ${arch}`,
+			);
 	}
 };
 
@@ -155,11 +162,17 @@ export async function installQemuIfNeeded(
 	const { promises: fs } = await import('fs');
 	const qemuPath = await getQemuPath(arch);
 	try {
+		const stats = await fs.stat(qemuPath);
+		// Earlier versions of the CLI with broken error handling would leave
+		// behind files with size 0. If such a file is found, delete it.
+		if (stats.size === 0) {
+			await fs.unlink(qemuPath);
+		}
 		await fs.access(qemuPath);
 	} catch {
 		// Qemu doesn't exist so install it
 		logger.logInfo(`Installing qemu for ${arch} emulation...`);
-		await installQemu(arch);
+		await installQemu(arch, qemuPath);
 	}
 	return true;
 }
