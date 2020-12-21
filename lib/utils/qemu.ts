@@ -16,7 +16,9 @@
  */
 
 import type * as Dockerode from 'dockerode';
-import { getBalenaSdk, stripIndent } from './lazy';
+
+import { ExpectedError } from '../errors';
+import { getBalenaSdk } from './lazy';
 import Logger = require('./logger');
 
 export const QEMU_VERSION = 'v4.0.0+balena2';
@@ -84,47 +86,50 @@ export const getQemuPath = function (arch: string) {
 	);
 };
 
-export function installQemu(arch: string) {
-	const request = require('request') as typeof import('request');
-	const fs = require('fs') as typeof import('fs');
-	const zlib = require('zlib') as typeof import('zlib');
-	const tar = require('tar-stream') as typeof import('tar-stream');
+async function installQemu(arch: string, qemuPath: string) {
+	const qemuArch = balenaArchToQemuArch(arch);
+	const fileVersion = QEMU_VERSION.replace(/^v/, '').replace('+', '.');
+	const urlFile = encodeURIComponent(`qemu-${fileVersion}-${qemuArch}.tar.gz`);
+	const urlVersion = encodeURIComponent(QEMU_VERSION);
+	const qemuUrl = `https://github.com/balena-io/qemu/releases/download/${urlVersion}/${urlFile}`;
 
-	return getQemuPath(arch).then(
-		(qemuPath) =>
-			new Promise(function (resolve, reject) {
-				const installStream = fs.createWriteStream(qemuPath);
+	const request = await import('request');
+	const fs = await import('fs');
+	const zlib = await import('zlib');
+	const tar = await import('tar-stream');
 
-				const qemuArch = balenaArchToQemuArch(arch);
-				const fileVersion = QEMU_VERSION.replace(/^v/, '').replace('+', '.');
-				const urlFile = encodeURIComponent(
-					`qemu-${fileVersion}-${qemuArch}.tar.gz`,
-				);
-				const urlVersion = encodeURIComponent(QEMU_VERSION);
-				const qemuUrl = `https://github.com/balena-io/qemu/releases/download/${urlVersion}/${urlFile}`;
+	const extract = tar.extract();
+	const installStream = fs.createWriteStream(qemuPath);
+	try {
+		extract.on('entry', function (header, stream, next) {
+			stream.on('end', next);
+			if (header.name.includes(`qemu-${qemuArch}-static`)) {
+				stream.pipe(installStream);
+			} else {
+				stream.resume();
+			}
+		});
 
-				const extract = tar.extract();
-				extract.on('entry', function (header, stream, next) {
-					stream.on('end', next);
-					if (header.name.includes(`qemu-${qemuArch}-static`)) {
-						stream.pipe(installStream);
-					} else {
-						stream.resume();
-					}
+		await new Promise((resolve, reject) => {
+			request(qemuUrl)
+				.on('error', reject)
+				.pipe(zlib.createGunzip())
+				.on('error', reject)
+				.pipe(extract)
+				.on('error', reject)
+				.on('finish', function () {
+					fs.chmodSync(qemuPath, '755');
+					resolve();
 				});
-
-				return request(qemuUrl)
-					.on('error', reject)
-					.pipe(zlib.createGunzip())
-					.on('error', reject)
-					.pipe(extract)
-					.on('error', reject)
-					.on('finish', function () {
-						fs.chmodSync(qemuPath, '755');
-						resolve();
-					});
-			}),
-	);
+		});
+	} catch (err) {
+		try {
+			await fs.promises.unlink(qemuPath);
+		} catch {
+			// ignore
+		}
+		throw err;
+	}
 }
 
 const balenaArchToQemuArch = function (arch: string) {
@@ -136,7 +141,9 @@ const balenaArchToQemuArch = function (arch: string) {
 		case 'aarch64':
 			return 'aarch64';
 		default:
-			throw new Error(`Cannot install emulator for architecture ${arch}`);
+			throw new ExpectedError(
+				`Emulation not supported for architecture ${arch}`,
+			);
 	}
 };
 
@@ -148,18 +155,24 @@ export async function installQemuIfNeeded(
 ): Promise<boolean> {
 	// call platformNeedsQemu() regardless of whether emulation is required,
 	// because it logs useful information
-	const needsQemu = await platformNeedsQemu(docker, logger);
+	const needsQemu = await platformNeedsQemu(docker, emulated, logger);
 	if (!emulated || !needsQemu) {
 		return false;
 	}
 	const { promises: fs } = await import('fs');
 	const qemuPath = await getQemuPath(arch);
 	try {
+		const stats = await fs.stat(qemuPath);
+		// Earlier versions of the CLI with broken error handling would leave
+		// behind files with size 0. If such a file is found, delete it.
+		if (stats.size === 0) {
+			await fs.unlink(qemuPath);
+		}
 		await fs.access(qemuPath);
 	} catch {
 		// Qemu doesn't exist so install it
 		logger.logInfo(`Installing qemu for ${arch} emulation...`);
-		await installQemu(arch);
+		await installQemu(arch, qemuPath);
 	}
 	return true;
 }
@@ -175,30 +188,27 @@ export async function installQemuIfNeeded(
  * - https://stackoverflow.com/questions/55388725/run-linux-arm-container-via-qemu-binfmt-misc-on-docker-lcow
  *
  * @param docker Dockerode instance
+ * @param emulated The --emulated command-line option
+ * @param logger Logger instance
  */
-async function platformNeedsQemu(
+export async function platformNeedsQemu(
 	docker: Dockerode,
-	logger: Logger,
+	emulated: boolean,
+	logger?: Logger,
 ): Promise<boolean> {
-	const dockerInfo = await docker.info();
-	// Docker Desktop (Windows and Mac) with Docker Engine 19.03 reports:
-	//     OperatingSystem: Docker Desktop
-	//     OSType: linux
-	// Docker for Mac with Docker Engine 18.06 reports:
-	//     OperatingSystem: Docker for Mac
-	//     OSType: linux
-	// On Ubuntu (standard Docker installation):
-	//     OperatingSystem: Ubuntu 18.04.2 LTS (containerized)
-	//     OSType: linux
-	// https://stackoverflow.com/questions/38223965/how-can-i-detect-if-docker-for-mac-is-installed
-	const isDockerDesktop = /(?:Docker Desktop)|(?:Docker for Mac)/i.test(
-		dockerInfo.OperatingSystem,
-	);
-	if (isDockerDesktop) {
-		logger.logInfo(stripIndent`
-			Docker Desktop detected (daemon architecture: "${dockerInfo.Architecture}")
-			  Docker itself will determine and enable architecture emulation if required,
-			  without balena-cli intervention and regardless of the --emulated option.`);
+	const { isDockerDesktop } = await import('./docker');
+	const [isDD, dockerInfo] = await isDockerDesktop(docker);
+	if (logger && isDD) {
+		const msg = [
+			`Docker Desktop detected (daemon architecture: "${dockerInfo.Architecture}")`,
+		];
+		if (emulated) {
+			msg.push(
+				'The --emulated option will be ignored because Docker Desktop has built-in',
+				'"binfmt_misc" QEMU emulation.',
+			);
+		}
+		logger.logInfo(msg.join('\n  '));
 	}
-	return !isDockerDesktop;
+	return !isDD;
 }
