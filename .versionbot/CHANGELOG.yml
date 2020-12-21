@@ -1,4 +1,23 @@
 - commits:
+    - subject: 'build, deploy: Add support for multi-architecture base images'
+      hash: d6edd64df43316369fa5bc1a877062df1eb472eb
+      body: ''
+      footer:
+        Change-type: minor
+        change-type: minor
+      author: Paulo Castro
+      nested: []
+    - subject: 'build, deploy: Fix error handling when QEMU download fails'
+      hash: e09392153867baa785d056abfdb3a97fc920c71a
+      body: ''
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Paulo Castro
+      nested: []
+  version: 12.36.0
+  date: 2020-12-21T23:05:46.660Z
+- commits:
     - subject: Improve id disambiguation for tag commands
       hash: 584aa745f7a5f2d2cc7fb3209ac5c07c366ea04b
       body: ''
