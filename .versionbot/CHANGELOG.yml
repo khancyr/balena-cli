@@ -1,4 +1,57 @@
 - commits:
+    - subject: Fix etcher-sdk related types
+      hash: 84a0d3738c3765e400ae65e7d5aebba4dddfbe17
+      body: ''
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+        signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+      author: Marios Balamatsias
+      nested: []
+    - subject: Bump etcher-sdk to 5.2.2
+      hash: 1f53bee7e5cf4ac67a55fdbd2951ce7e48bc886a
+      body: ''
+      footer:
+        Change-type: minor
+        change-type: minor
+        Signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+        signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+      author: Marios Balamatsias
+      nested: []
+    - subject: Remove resin-image-fs typings
+      hash: 23b307954b046aaa9dce65e22854b86639df44f8
+      body: ''
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+        signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+      author: Marios Balamatsias
+      nested: []
+    - subject: 'package.json: Remove resin-image-fs package'
+      hash: 3636bccf997ab7d0f0020897eb966250eda24ed7
+      body: ''
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+        signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+      author: Marios Balamatsias
+      nested: []
+    - subject: Replace old resin-image-fs with newer balena-image-fs
+      hash: d0c0f2aa91f7910f5f94e8547d4d87c31acb1e2d
+      body: ''
+      footer:
+        Change-type: minor
+        change-type: minor
+        Signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+        signed-off-by: Marios Balamatsias <mbalamatsias@gmail.com>
+      author: Marios Balamatsias
+      nested: []
+  version: 12.39.0
+  date: 2021-01-29T16:14:51.185Z
+- commits:
     - subject: 'build/deploy: Update QEMU to speed up emulated builds'
       hash: 9636985ee7648dca6967cf35ddd7bb122cfbc65c
       body: |
