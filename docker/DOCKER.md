@@ -2,13 +2,50 @@
 
 Docker images with balena CLI and docker-in-docker.
 
-## Available architectures
+## Features Overview
 
-- `rpi`
-- `armv7hf`
-- `aarch64` (debian only)
-- `amd64`
-- `i386`
+These CLI images are based on the popular [Balena base images](https://www.balena.io/docs/reference/base-images/base-images/)
+so they include many of the features you see there.
+
+- Multiple Architectures:
+    - `rpi`
+    - `armv7hf`
+    - `aarch64` (debian only)
+    - `amd64`
+    - `i386`
+- Multiple Distributions
+    - `debian`
+    - `alpine`
+- [cross-build](https://www.balena.io/docs/reference/base-images/base-images/#building-arm-containers-on-x86-machines) functionality for building ARM containers on x86.
+- Helpful package installer script called `install_packages` inspired by [minideb](https://github.com/bitnami/minideb#why-use-minideb).
+
+## Image Names
+
+`balenalib/<arch>-<distro>-balenacli:<cli_ver>`
+
+- `<arch>` is the architecture and is mandatory. If using Dockerfile.templates, you can replace this with `%%BALENA_ARCH%%`.
+For a list of available device names and architectures, see the [Device types](https://www.balena.io/docs/reference/base-images/devicetypes/).
+- `<distro>` is the Linux distribution and is mandatory. Currently there are 2 distributions, namely `debian` and `alpine`.
+
+## Image Tags
+
+In the tags, all of the fields are optional, and if they are left out, they will default to their `latest` pointer.
+
+- `<cli_ver>` is the version of the balena CLI, for example, `12.40.2`, it can also be substituted for `latest`.
+
+## Examples
+
+`balenalib/amd64-debian-balenacli:12.40.2`
+
+- `<arch>`: amd64 - suitable for running on most workstations
+- `<distro>`: debian - widely used base distro
+- `<cli_ver>`: 12.40.2
+
+`balenalib/armv7hf-alpine-balenacli`
+
+- `<arch>`: armv7hf - suitable for running on a Raspberry Pi 3 for example
+- `<distro>`: alpine - smaller footprint than debian
+- `<cli_ver>`: omitted - the latest available CLI version will be used
 
 ## Basic Usage
 
@@ -53,10 +90,13 @@ elevate permissions unless required.
 
 - <https://www.balena.io/docs/reference/balena-cli/#scan>
 
+NOTE: Currently the `balena scan` command does not work with Docker Desktop
+on Windows or MacOS due to the VM using a separate network interface
+in a different address range by default.
+
 ```bash
-# balena scan requires the host network and NET_ADMIN
-docker run --rm -it --cap-add NET_ADMIN --network host \
-    balenalib/amd64-debian-balenacli scan
+# balena scan requires the host network
+docker run --rm -it --network host balenalib/amd64-debian-balenacli scan
 ```
 
 ### ssh
@@ -147,21 +187,21 @@ docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock \
 
 ## Custom images / contributing
 
-The following script / steps may be used to create custom CLI images or
+The following steps may be used to create custom CLI images or
 to contribute bug reports, fixes or features.
 
 ```bash
-# optionally enable qemu for cross-compiling
+# the currently supported base images are 'debian' and 'alpine'
+export BALENA_DISTRO="debian"
+
+# provide the architecture where you will be testing the image
+export BALENA_ARCH="amd64"
+
+# optionally enable QEMU binfmt if building for other architectures (eg. armv7hf)
 docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
-export BALENA_ARCH="amd64"
-export BALENA_DISTRO="debian"
-export BALENA_CLI_VERSION="12.38.0"
-
-docker build ${BALENA_DISTRO} \
-    --build-arg BALENA_ARCH \
-    --build-arg BALENA_CLI_VERSION \
-    --tag "balenalib/${BALENA_ARCH}-${BALENA_DISTRO}-balenacli:${BALENA_CLI_VERSION}" \
-    --tag "balenalib/${BALENA_ARCH}-${BALENA_DISTRO}-balenacli:latest" \
+# build and tag an image with docker
+docker build -f docker/${BALENA_DISTRO}/Dockerfile --build-arg BALENA_ARCH \
+    --tag "balenalib/${BALENA_DISTRO}-${BALENA_ARCH}-balenacli" \
     --pull
 ```

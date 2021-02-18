@@ -17,4 +17,66 @@ npm:
         - "14"
 
 docker:
-  publish: false
+  builds:
+    - path: .
+      dockerfile: ./docker/alpine/Dockerfile
+      docker_repo: balenalib/amd64-alpine-balenacli
+      args:
+        - BALENA_ARCH=amd64
+      publish: true
+
+    - path: .
+      dockerfile: ./docker/alpine/Dockerfile
+      docker_repo: balenalib/armv7hf-alpine-balenacli
+      args:
+        - BALENA_ARCH=armv7hf
+      publish: true
+        
+    - path: .
+      dockerfile: ./docker/alpine/Dockerfile
+      docker_repo: balenalib/i386-alpine-balenacli
+      args:
+        - BALENA_ARCH=i386
+      publish: true
+
+    - path: .
+      dockerfile: ./docker/alpine/Dockerfile
+      docker_repo: balenalib/rpi-alpine-balenacli
+      args:
+        - BALENA_ARCH=rpi
+      publish: true
+
+    - path: .
+      dockerfile: ./docker/debian/Dockerfile
+      docker_repo: balenalib/aarch64-debian-balenacli
+      args:
+        - BALENA_ARCH=aarch64
+      publish: true
+
+    - path: .
+      dockerfile: ./docker/debian/Dockerfile
+      docker_repo: balenalib/amd64-debian-balenacli
+      args:
+        - BALENA_ARCH=amd64
+      publish: true
+
+    - path: .
+      dockerfile: ./docker/debian/Dockerfile
+      docker_repo: balenalib/armv7hf-debian-balenacli
+      args:
+        - BALENA_ARCH=armv7hf
+      publish: true
+        
+    - path: .
+      dockerfile: ./docker/debian/Dockerfile
+      docker_repo: balenalib/i386-debian-balenacli
+      args:
+        - BALENA_ARCH=i386
+      publish: true
+
+    - path: .
+      dockerfile: ./docker/debian/Dockerfile
+      docker_repo: balenalib/rpi-debian-balenacli
+      args:
+        - BALENA_ARCH=rpi
+      publish: true
