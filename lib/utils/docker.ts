@@ -110,7 +110,7 @@ export interface BuildOpts {
 	t?: string;
 }
 
-function parseBuildArgs(args: string[]): Dictionary<string> {
+export function parseBuildArgs(args: string[]): Dictionary<string> {
 	if (!Array.isArray(args)) {
 		args = [args];
 	}
