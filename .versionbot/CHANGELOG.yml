@@ -1,4 +1,19 @@
 - commits:
+    - subject: 'docker: initial commit of balenalib dockerfiles'
+      hash: 58579d8e8ef761c3d94e5f4903575af65e746926
+      body: |
+        Add dockerfiles for alpine and debian images, based on upstream
+        balenalib/arch-distro-node images.
+      footer:
+        Change-type: minor
+        change-type: minor
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 12.41.0
+  date: 2021-02-26T16:57:34.004Z
+- commits:
     - subject: 'docs: Fix missing markdown docs for device `deactivate` and `local-mode`'
       hash: b90c9b0d7e59353101213c6be22eaff9a9c0b274
       body: ''
